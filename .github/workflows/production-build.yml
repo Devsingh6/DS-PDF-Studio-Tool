@@ -69,6 +69,13 @@ jobs:
             echo "::warning::Backend smoke tests were not run because backend/requirements.txt and/or tests/test_api_smoke.py are missing from this repository. Add the v1.7.0 backend source to enable these tests."
           fi
 
+      - name: Install Indic fonts for Unicode PDF tests
+        if: steps.backend-source.outputs.available == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-core
+          fc-cache -f
+
       - name: Install backend dependencies
         if: steps.backend-source.outputs.available == 'true'
         run: |
