@@ -18,8 +18,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PDF_MAX_FILE_MB=100 \
     PDF_MAX_PAGES=500
 
+# Noto Sans fonts include Tamil and other Indic scripts used by translated PDFs.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng ca-certificates fonts-dejavu-core libglib2.0-0 libgomp1 \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng ca-certificates fonts-dejavu-core fonts-noto-core libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
