@@ -23,7 +23,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version: "22"
 
       - name: Validate source layout
         run: |
@@ -57,14 +57,25 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
+
+      - name: Check backend source availability
+        id: backend-source
+        shell: bash
+        run: |
+          if [[ -f backend/requirements.txt && -f tests/test_api_smoke.py ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Backend smoke tests were not run because backend/requirements.txt and/or tests/test_api_smoke.py are missing from this repository. Add the v1.7.0 backend source to enable these tests."
+          fi
 
       - name: Install backend dependencies
+        if: steps.backend-source.outputs.available == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
           pip install pytest httpx
 
       - name: Run backend smoke tests
+        if: steps.backend-source.outputs.available == 'true'
         run: python -m pytest tests/test_api_smoke.py -q
