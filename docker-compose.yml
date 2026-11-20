@@ -1,0 +1,25 @@
+services:
+  ds-pdf-studio-tool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ds-pdf-studio-tool:1.7.0
+    container_name: ds-pdf-studio-tool
+    restart: unless-stopped
+    ports:
+      - "${DS_PDF_STUDIO_PORT:-${PDF_STUDIO_PORT:-8000}}:8000"
+    environment:
+      PDF_MAX_FILE_MB: ${PDF_MAX_FILE_MB:-100}
+      PDF_MAX_PAGES: ${PDF_MAX_PAGES:-500}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      AI_TRANSLATION_API_KEY: ${AI_TRANSLATION_API_KEY:-}
+      AI_TRANSLATION_API_URL: ${AI_TRANSLATION_API_URL:-https://api.openai.com/v1/chat/completions}
+      AI_TRANSLATION_MODEL: ${AI_TRANSLATION_MODEL:-gpt-4.1-mini}
+      PDF_UNICODE_FONT_PATH: ${PDF_UNICODE_FONT_PATH:-/app/fonts/Nirmala.ttf}
+    volumes:
+      - ./fonts:/app/fonts:ro
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid
