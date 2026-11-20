@@ -28,6 +28,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -r backend/requirements.txt
 
 COPY backend/ ./backend/
+COPY --from=frontend-build /app/frontend/package.json ./frontend/package.json
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 RUN python backend/verify_frontend.py
 
