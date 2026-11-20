@@ -3,7 +3,7 @@ name: Import uploaded source ZIP
 on:
   push:
     paths:
-      - "incoming/DS-PDF-Studio-Tool-v1.7.0.zip"
+      - "DS-PDF-Studio-Tool-v1.7.0.zip"
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ZIP="incoming/DS-PDF-Studio-Tool-v1.7.0.zip"
+          ZIP="DS-PDF-Studio-Tool-v1.7.0.zip"
           test -f "$ZIP"
           mkdir -p /tmp/ds-pdf-source
           unzip -q "$ZIP" -d /tmp/ds-pdf-source
@@ -31,7 +31,6 @@ jobs:
           # Preserve the repository's existing GitHub Actions workflows.
           rsync -a --exclude='.git/' --exclude='.github/' "$ROOT/" ./
           rm -f "$ZIP"
-          rmdir incoming 2>/dev/null || true
 
       - name: Commit imported project source
         shell: bash
