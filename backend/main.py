@@ -1422,6 +1422,7 @@ async def frontend_favicon():
     candidates = (
         os.path.join(FRONTEND_DIST, "favicon.svg"),
         os.path.join(FRONTEND_DIR, "public", "favicon.svg"),
+        os.path.join(PROJECT_ROOT, "favicon.svg"),
     )
     for candidate in candidates:
         if os.path.isfile(candidate):
