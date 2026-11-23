@@ -8,7 +8,7 @@ import {
 
 // PDF.js is large. Load it only after a PDF is selected so the initial
 // corporate workspace stays fast and the PDF renderer is cached separately.
-let pdfJsModulePromise;
+let pdfJsModulePromise;\nlet pdfJsApi;
 async function loadPdfJs() {
   if (!pdfJsModulePromise) {
     pdfJsModulePromise = Promise.all([
