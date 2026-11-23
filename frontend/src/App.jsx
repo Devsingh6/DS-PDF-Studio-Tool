@@ -51,7 +51,7 @@ const RIBBON_GROUPS = {
   Organize: [
     ['Organize pages', 'Reorder, rotate and delete pages', 'available', 'pages'],
     ['Duplicate pages', 'Create a copy of the active page in the page list', 'available', 'duplicate'],
-    ['Crop pages', 'Trim margins and set page dimensions', 'planned', 'roadmap'],
+    ['Crop pages', 'Trim the active page margins before export', 'available', 'crop'],
     ['PDF overlay / letterhead', 'Place one PDF over another document', 'planned', 'roadmap'],
     ['Page numbers', 'Add sequential page labels', 'available', 'watermark'],
   ],
@@ -265,6 +265,7 @@ function App() {
   const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
   const [pageNumbers, setPageNumbers] = useState(false);
+  const [cropMargins, setCropMargins] = useState({ top: 0, right: 0, bottom: 0, left: 0 });
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
   const [findResults, setFindResults] = useState(null);
@@ -481,6 +482,7 @@ function App() {
     return {
       order: pageOrder,
       rotations,
+      cropByPage: Object.values(cropMargins).some((value) => Number(value) > 0) ? { [String(activePage)]: cropMargins } : {},
       selectedPages: selectedOnly ? Array.from(selectedPages) : [],
       overlays,
       inlineTextEdits,
@@ -957,6 +959,7 @@ function App() {
       showToast('Page ' + (current + 1) + ' duplicated. Export PDF to save the copy.');
       return;
     }
+    if (feature.action === 'crop') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-crop'); return; }
     if (feature.action === 'pages') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-pages'); return; }
     if (feature.action === 'find') { if (!pdfFile) openPdfPicker(); else { openToolSection('ribbon-find'); window.setTimeout(() => findInputRef.current?.focus(), 250); } return; }
     if (feature.action === 'text') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-text'); return; }
@@ -1104,6 +1107,16 @@ function App() {
                   <div className="section-title"><span className="section-icon"><ImagePlus size={15} /></span> Insert image or signature</div>
                   <div className="two-fields"><div><label className="field-label">Image width (%)</label><input className="field-input" type="number" min="3" max="100" value={imageWidth} onChange={(event) => setImageWidth(event.target.value)} /></div><div className="field-action"><label className="field-label">Select image</label><button className="button button-light compact-button" onClick={() => imageInputRef.current?.click()}><FileImage size={14} /> Browse</button></div></div>
                   <input ref={imageInputRef} type="file" accept="image/png,image/jpeg" className="hidden-input" onChange={(event) => { addImageOverlay(event.target.files?.[0]); event.target.value = ''; }} />
+                </div>
+
+                <div className="tool-section" id="ribbon-crop">
+                  <div className="section-title"><span className="section-icon"><Crop size={15} /></span> Crop active page</div>
+                  <p className="micro-note">Set crop margins as percentages of the current page. The crop is applied to the exported PDF, not the original upload.</p>
+                  <div className="field-grid">
+                    {['top', 'right', 'bottom', 'left'].map((side) => <div key={side}><label className="field-label">{side[0].toUpperCase() + side.slice(1)} (%)</label><input className="field-input" type="number" min="0" max="45" step="1" value={cropMargins[side]} onChange={(event) => setCropMargins((previous) => ({ ...previous, [side]: Math.max(0, Math.min(45, Number(event.target.value) || 0)) }))} /></div>)}
+                  </div>
+                  <button type="button" className="button button-light compact-button full-button" onClick={() => { setCropMargins({ top: 0, right: 0, bottom: 0, left: 0 }); showToast('Crop margins reset.'); }}>Reset crop margins</button>
+                  <p className="micro-note">Applies to page {currentIndex + 1} only. Click Export PDF to save the crop.</p>
                 </div>
 
                 <div className="tool-section" id="ribbon-watermark">
