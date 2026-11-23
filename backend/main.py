@@ -578,6 +578,50 @@ async def split_pdf(
         source.close()
 
 
+@app.post("/api/pdf/from-images")
+async def images_to_pdf(files: list[UploadFile] = File(...)) -> Response:
+    """Combine uploaded image files into a multi-page PDF in upload order."""
+    if not files:
+        raise HTTPException(status_code=400, detail="Choose at least one image file.")
+    if len(files) > 100:
+        raise HTTPException(status_code=413, detail="Images to PDF is limited to 100 images per request.")
+    output = fitz.open()
+    total_bytes = 0
+    try:
+        for upload in files:
+            filename = upload.filename or "image"
+            extension = os.path.splitext(filename)[1].lower().lstrip(".")
+            if extension not in {"jpg", "jpeg", "png", "tif", "tiff", "bmp"}:
+                raise HTTPException(status_code=400, detail=f"Unsupported image format: {filename}")
+            data = await upload.read(MAX_FILE_BYTES + 1)
+            total_bytes += len(data)
+            if not data:
+                raise HTTPException(status_code=400, detail=f"The image {filename} is empty.")
+            if total_bytes > MAX_FILE_BYTES:
+                raise HTTPException(status_code=413, detail=f"The combined images exceed {MAX_FILE_BYTES // (1024 * 1024)} MB.")
+            try:
+                image_doc = fitz.open(stream=data, filetype=extension)
+                try:
+                    image_pdf = image_doc.convert_to_pdf()
+                finally:
+                    image_doc.close()
+                page_doc = fitz.open("pdf", image_pdf)
+                try:
+                    if output.page_count + page_doc.page_count > MAX_PAGES:
+                        raise HTTPException(status_code=413, detail=f"The output exceeds {MAX_PAGES} pages.")
+                    output.insert_pdf(page_doc)
+                finally:
+                    page_doc.close()
+            except HTTPException:
+                raise
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=f"Could not process {filename}. Use a valid JPG, PNG, TIFF or BMP image.") from exc
+        if output.page_count == 0:
+            raise HTTPException(status_code=400, detail="No supported images were processed.")
+        return Response(content=output.tobytes(garbage=4, deflate=True), media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="images-to-pdf.pdf"'})
+    finally:
+        output.close()
+
 @app.post("/api/pdf/merge")
 async def merge_pdfs(files: list[UploadFile] = File(...)) -> Response:
     if len(files) < 2:
