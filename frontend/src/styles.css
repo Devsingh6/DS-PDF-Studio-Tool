@@ -592,3 +592,99 @@ button, input, textarea, select { font-family: inherit; }
   background: #fff; color: #20243a; font-size: 11px; line-height: 1.15;
   white-space: pre-wrap; box-sizing: border-box; pointer-events: none;
 }
+
+/* DS PDF Studio — Nitro-inspired professional desktop workspace theme.
+   Original DS branding and styling; no Nitro assets or proprietary UI copied. */
+:root {
+  --ink: #252525;
+  --muted: #737373;
+  --line: #dedede;
+  --brand: #d71920;
+  --brand-dark: #b51219;
+  --brand-pale: #fff0f0;
+  --surface: #fff;
+  --shadow: 0 2px 9px rgba(0,0,0,.07);
+  background: #f1f2f3;
+  color: #252525;
+}
+body { background: #f1f2f3; color: #252525; }
+.topbar {
+  height: 60px; flex-basis: 60px; padding: 0 22px;
+  background: #fff; border-bottom: 1px solid #d8d8d8;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.brand-icon {
+  border-radius: 7px; background: #d71920;
+  box-shadow: none; width: 34px; height: 34px;
+}
+.brand-name { color: #252525; font-size: 15px; letter-spacing: -.25px; }
+.brand-caption { color: #777; letter-spacing: .9px; }
+.button { border-radius: 5px; }
+.button-primary { background: #d71920; border-color: #d71920; box-shadow: none; }
+.button-primary:hover:not(:disabled) { background: #b51219; border-color: #b51219; }
+.button-soft { background: #fff0f0; color: #b51219; border-color: #f6d4d5; }
+.button-soft:hover:not(:disabled) { background: #ffe3e4; }
+.button-light { border-radius: 5px; border-color: #d7d7d7; color: #444; }
+.page-main { max-width: 1800px; padding: 20px 22px 28px; }
+.welcome-wrap { gap: 44px; }
+.eyebrow { color: #c8171e; }
+.welcome-copy h1 span { color: #d71920; }
+.upload-card {
+  border: 1.5px dashed #c9c9c9; border-radius: 8px;
+  box-shadow: 0 3px 14px rgba(0,0,0,.055);
+}
+.upload-card.drag-active { border-color: #d71920; background: #fffafa; box-shadow: 0 0 0 3px #d7192015; }
+.upload-icon { border-radius: 9px; background: #fff0f0; color: #d71920; }
+.document-heading { margin-bottom: 13px; }
+.file-badge { background: #fff0f0; border-radius: 7px; color: #d71920; }
+.workspace-grid { grid-template-columns: 218px minmax(350px,1fr) 286px; gap: 10px; }
+.panel {
+  border: 1px solid #d9d9d9; border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.055);
+}
+.panel-heading,.tools-heading { background: #fafafa; border-bottom-color: #dedede; }
+.panel-heading h2,.tools-heading h2 { color: #292929; }
+.count-bubble { background: #fff0f0; color: #c8171e; }
+.text-action { color: #c8171e; }
+.text-action:hover:not(:disabled) { color: #991017; }
+.page-tile { border-radius: 5px; border-color: #e1e1e1; }
+.page-tile:hover { border-color: #d71920; }
+.page-tile.active { border-color: #d71920; background: #fff7f7; box-shadow: inset 3px 0 #d71920; }
+.page-tile input,.toggle-row input { accent-color: #d71920; }
+.editor-toolbar {
+  min-height: 48px; background: #fff; border-bottom: 1px solid #dedede;
+}
+.icon-button { border-radius: 5px; color: #555; }
+.icon-button:hover:not(:disabled) { background: #fff0f0; border-color: #f3d0d1; color: #c8171e; }
+.document-stage { background: #e9eaec; }
+.paper-frame { box-shadow: 0 2px 12px rgba(0,0,0,.2); }
+.tools-panel { background: #fff; }
+.tool-section { border-bottom-color: #e7e7e7; }
+.section-title { color: #303030; }
+.section-icon,.tool-spark { background: #fff0f0; color: #d71920; border-radius: 5px; }
+.text-area,.field-input,.color-input { border-color: #d7d7d7; border-radius: 5px; color: #333; }
+.text-area:focus,.field-input:focus { border-color: #d71920; box-shadow: 0 0 0 2px #d7192015; }
+.full-button { border-radius: 5px; }
+.export-note { border-radius: 5px; background: #f7f7f7; }
+.site-footer { background: #fff; border-top-color: #dedede; }
+.nitro-ribbon {
+  background: #fff; border-bottom: 1px solid #d2d2d2;
+  box-shadow: 0 2px 4px rgba(0,0,0,.045);
+}
+.ribbon-tabs { background: #fff; border-bottom: 1px solid #dedede; }
+.ribbon-tab { color: #555; }
+.ribbon-tab.active,.ribbon-tab[aria-selected="true"] {
+  color: #c8171e; border-bottom: 3px solid #d71920;
+}
+.ribbon-tool:hover { background: #fff2f2; border-color: #f1d0d1; }
+.ribbon-tool svg { color: #c8171e; }
+.pdf-inline-editor { border-color: #d71920; }
+.pdf-inline-actions button:first-child { border-color: #d71920; background: #d71920; }
+.pdf-click-text:hover,.pdf-click-text:focus-visible {
+  background: rgba(215,25,32,.12); outline: 1px solid rgba(215,25,32,.65);
+}
+@media (max-width: 760px) {
+  .topbar { height: 56px; flex-basis: 56px; padding: 0 12px; }
+  .page-main { padding: 12px 10px 20px; }
+  .workspace-grid { gap: 8px; }
+}
