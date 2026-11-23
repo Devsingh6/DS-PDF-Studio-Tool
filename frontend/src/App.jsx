@@ -252,7 +252,8 @@ function App() {
   const [pageNumbers, setPageNumbers] = useState(false);
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
-  const [findResults, setFindResults] = useState(null);\n  const [clickedPdfLine, setClickedPdfLine] = useState('');
+  const [findResults, setFindResults] = useState(null);
+  const [clickedPdfLine, setClickedPdfLine] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [apiReady, setApiReady] = useState(false);
   const [splitRanges, setSplitRanges] = useState('1');
