@@ -238,6 +238,89 @@ def _apply_text_replacements(document: fitz.Document, replacements: list[dict[st
                     )
 
 
+def _apply_inline_text_edits(document: fitz.Document, edits: list[dict[str, Any]]) -> None:
+    """Redact and rewrite text at the clicked PDF coordinates, without Find & Replace."""
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for edit in edits:
+        if not isinstance(edit, dict):
+            continue
+        try:
+            page_index = int(edit.get("page", -1))
+            raw_bbox = edit.get("bbox", [])
+            if len(raw_bbox) != 4 or not 0 <= page_index < document.page_count:
+                continue
+            rect = fitz.Rect(*(float(value) for value in raw_bbox))
+            if rect.is_empty or rect.is_infinite:
+                continue
+            rect = rect & document[page_index].rect
+            if rect.is_empty:
+                continue
+            text = str(edit.get("text", ""))[:1000]
+            if text.strip():
+                grouped.setdefault(page_index, []).append({"rect": rect, "text": text})
+        except (TypeError, ValueError):
+            continue
+
+    for page_index, page_edits in grouped.items():
+        page = document[page_index]
+        prepared = []
+        for edit in page_edits:
+            rect = edit["rect"]
+            style = {"size": max(5.0, min(36.0, rect.height * 0.78)), "color": (0.12, 0.15, 0.22)}
+            try:
+                blocks = page.get_text("dict").get("blocks", [])
+                best_span = None
+                best_area = 0.0
+                for block in blocks:
+                    for line in block.get("lines", []):
+                        for span in line.get("spans", []):
+                            span_rect = fitz.Rect(span.get("bbox", (0, 0, 0, 0)))
+                            intersection = rect & span_rect
+                            area = max(0.0, intersection.width) * max(0.0, intersection.height)
+                            if area > best_area:
+                                best_area, best_span = area, span
+                if best_span:
+                    color_value = int(best_span.get("color", 0))
+                    style = {
+                        "size": max(5.0, min(36.0, float(best_span.get("size", style["size"])))),
+                        "color": (((color_value >> 16) & 255) / 255, ((color_value >> 8) & 255) / 255, (color_value & 255) / 255),
+                    }
+            except Exception:
+                pass
+            prepared.append({**edit, **style})
+
+        for item in prepared:
+            page.add_redact_annot(item["rect"], fill=(1, 1, 1), cross_out=False)
+        page.apply_redactions(images=0, graphics=0)
+
+        for item in prepared:
+            rect = item["rect"]
+            font_options = _font_options_for_text(item["text"])
+            inserted = False
+            for factor in (1.0, 0.92, 0.84, 0.76, 0.68, 0.60, 0.52, 0.44, 0.36):
+                result = page.insert_textbox(
+                    rect,
+                    item["text"],
+                    **font_options,
+                    fontsize=max(4.5, item["size"] * factor),
+                    color=item["color"],
+                    overlay=True,
+                    align=0,
+                )
+                if result >= 0:
+                    inserted = True
+                    break
+            if not inserted:
+                page.insert_text(
+                    fitz.Point(rect.x0, rect.y1 - max(1, rect.height * 0.16)),
+                    item["text"],
+                    **font_options,
+                    fontsize=max(4.5, min(item["size"] * 0.36, rect.height * 0.55)),
+                    color=item["color"],
+                    overlay=True,
+                )
+
+
 def _apply_page_content(
     page: fitz.Page,
     original_page_index: int,
@@ -337,6 +420,10 @@ def _build_output(source: fitz.Document, config: dict[str, Any], selected_only: 
         normalized_order = [idx for idx in normalized_order if idx in selected_indices]
     if not normalized_order:
         raise HTTPException(status_code=400, detail="Choose at least one page to export.")
+
+    inline_text_edits = config.get("inlineTextEdits", [])
+    if isinstance(inline_text_edits, list) and inline_text_edits:
+        _apply_inline_text_edits(source, inline_text_edits)
 
     replacements = config.get("replacements", [])
     if isinstance(replacements, list) and replacements:
