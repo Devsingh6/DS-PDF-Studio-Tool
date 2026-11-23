@@ -68,7 +68,7 @@ const RIBBON_GROUPS = {
     ['PDF to Excel', 'Extract tables into XLSX', 'available', 'excel'],
     ['PDF to RTF', 'Export rich text format', 'available', 'rtf'],
     ['Office to PDF', 'Convert Word, Excel and PowerPoint files', 'planned', 'roadmap'],
-    ['PDF to images', 'Render pages as JPG or PNG', 'planned', 'roadmap'],
+    ['PDF to images', 'Export each page as a PNG image in a ZIP file', 'available', 'pdf-images'],
     ['Images to PDF', 'Combine JPG, PNG, TIFF and BMP images into one PDF', 'available', 'images-pdf'],
     ['Office to PDF', 'Convert Word, Excel and PowerPoint files', 'planned', 'roadmap'],
     ['Webpage to PDF', 'Capture a formatted webpage as a PDF', 'planned', 'roadmap'],
@@ -514,7 +514,7 @@ function App() {
       const response = await fetch(`${API_BASE}/api/pdf/${endpoint}`, { method: 'POST', body: form });
       if (!response.ok) throw new Error(await responseError(response));
       const blob = await response.blob();
-      const extension = endpoint.includes('split/zip') || endpoint === 'zip' ? 'zip' : endpoint === 'convert/docx' ? 'docx' : endpoint === 'convert/xlsx' ? 'xlsx' : endpoint === 'convert/rtf' ? 'rtf' : 'pdf';
+      const extension = endpoint.includes('split/zip') || endpoint === 'zip' || endpoint === 'to-images' ? 'zip' : endpoint === 'convert/docx' ? 'docx' : endpoint === 'convert/xlsx' ? 'xlsx' : endpoint === 'convert/rtf' ? 'rtf' : 'pdf';
       downloadBlob(blob, `${filename}.${extension}`);
       if (endpoint === 'compress') {
         const ratio = response.headers.get('x-compression-percent');
@@ -947,6 +947,7 @@ function App() {
     if (feature.action === 'merge') { if (pdfFile) mergeInputRef.current?.click(); else openPdfPicker(); return; }
     if (feature.action === 'zip') { if (pdfFile) zipInputRef.current?.click(); else showToast('Upload a PDF before creating a ZIP.'); return; }
     if (feature.action === 'images-pdf') { imagesToPdfInputRef.current?.click(); return; }
+    if (feature.action === 'pdf-images') { if (!pdfFile) { openPdfPicker(); return; } downloadPdfEndpoint('to-images', {}, `${pdfFile.name.replace(/\\.pdf$/i, '')}-pages`); return; }
     if (feature.action === 'split') { openToolSection('ribbon-split'); return; }
     if (feature.action === 'duplicate') {
       if (!pdfFile) { openPdfPicker(); return; }
