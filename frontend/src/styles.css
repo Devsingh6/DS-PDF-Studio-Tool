@@ -567,3 +567,27 @@ button, input, textarea, select { font-family: inherit; }
 .clicked-text-preview { display:grid; gap:5px; margin:9px 0; padding:9px; border:1px solid #c9dce8; border-radius:8px; background:#f3f8fb; }
 .clicked-text-preview strong { color:#294a63; font-size:10px; }
 .clicked-text-preview span { color:#43596d; font-size:11px; line-height:1.45; overflow-wrap:anywhere; }
+
+
+/* Direct in-place sentence editor: the text field is positioned over the clicked PDF line. */
+.pdf-inline-editor {
+  position: absolute; z-index: 12; display: flex; flex-direction: column; gap: 5px;
+  padding: 6px; border: 2px solid #176b83; border-radius: 7px; background: #fff;
+  box-shadow: 0 8px 24px rgba(20, 48, 70, .22); box-sizing: border-box;
+}
+.pdf-inline-editor input {
+  width: 100%; min-width: 0; height: 30px; padding: 4px 7px;
+  border: 1px solid #cbd8e3; border-radius: 4px; color: #20384d;
+  background: #fff; font: inherit; font-size: 12px; box-sizing: border-box;
+}
+.pdf-inline-actions { display: flex; justify-content: flex-end; gap: 5px; }
+.pdf-inline-actions button {
+  border: 1px solid #d4e0e8; border-radius: 4px; padding: 4px 9px;
+  background: #f5f8fa; color: #29475e; font-size: 10px; font-weight: 700; cursor: pointer;
+}
+.pdf-inline-actions button:first-child { border-color: #176b83; background: #176b83; color: #fff; }
+.pdf-inline-preview {
+  position: absolute; z-index: 5; overflow: hidden; padding: 0 1px;
+  background: #fff; color: #20243a; font-size: 11px; line-height: 1.15;
+  white-space: pre-wrap; box-sizing: border-box; pointer-events: none;
+}
