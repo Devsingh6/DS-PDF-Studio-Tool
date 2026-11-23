@@ -16,7 +16,7 @@ async function loadPdfJs() {
       import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
     ]).then(([pdfjsLib, pdfWorker]) => {
       pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker.default;
-      return pdfjsLib;
+      pdfJsApi = pdfjsLib;\n      return pdfjsLib;
     }).catch((error) => {
       // Permit retry after a transient chunk/network failure.
       pdfJsModulePromise = undefined;
@@ -161,8 +161,11 @@ async function responseError(response) {
   }
 }
 
-function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false }) {
+let pdfJsApi;
+function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false, onTextClick }) {
   const canvasRef = useRef(null);
+  const [textItems, setTextItems] = useState([]);
+  const [dimensions, setDimensions] = useState(null);
   useEffect(() => {
     let cancelled = false;
     let renderTask;
@@ -171,28 +174,52 @@ function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false })
       try {
         const page = await document.getPage(pageIndex + 1);
         if (cancelled) return;
-        const baseScale = thumbnail ? 0.27 : 1.35;
-        const viewport = page.getViewport({
-          scale: baseScale,
-          rotation: (page.rotate + rotation) % 360,
-        });
+        const scale = thumbnail ? 0.27 : 1.35;
+        const viewport = page.getViewport({ scale, rotation: (page.rotate + rotation) % 360 });
         const canvas = canvasRef.current;
-        const context = canvas.getContext('2d', { alpha: false });
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
-        renderTask = page.render({ canvasContext: context, viewport });
+        setDimensions({ width: viewport.width, height: viewport.height });
+        renderTask = page.render({ canvasContext: canvas.getContext('2d', { alpha: false }), viewport });
         await renderTask.promise;
+        if (!thumbnail && onTextClick && pdfJsApi?.Util) {
+          const content = await page.getTextContent();
+          if (cancelled) return;
+          const rows = [];
+          content.items.forEach((item, index) => {
+            if (!item.str || !item.str.trim()) return;
+            const tx = pdfJsApi.Util.transform(viewport.transform, item.transform);
+            const baseline = Math.round(tx[5] / 3) * 3;
+            let row = rows.find((r) => Math.abs(r.baseline - baseline) <= 3);
+            if (!row) { row = { baseline, entries: [] }; rows.push(row); }
+            row.entries.push({ item, index, tx });
+          });
+          const positioned = [];
+          rows.forEach((row) => {
+            row.entries.sort((a, b) => a.tx[4] - b.tx[4]);
+            const line = row.entries.map((entry) => entry.item.str.trim()).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+            row.entries.forEach(({ item, index, tx }) => {
+              const height = Math.max(8, Math.hypot(tx[2], tx[3]));
+              positioned.push({ id: index, text: item.str, line, left: tx[4], top: tx[5] - height, width: Math.max(5, item.width * scale), height });
+            });
+          });
+          setTextItems(positioned);
+        } else setTextItems([]);
       } catch (error) {
         if (error?.name !== 'RenderingCancelledException') console.warn('PDF page render failed', error);
       }
     }
     draw();
-    return () => {
-      cancelled = true;
-      try { renderTask?.cancel(); } catch { /* no-op */ }
-    };
-  }, [document, pageIndex, rotation, thumbnail]);
-  return <canvas className={thumbnail ? 'thumbnail-canvas' : 'document-canvas'} ref={canvasRef} />;
+    return () => { cancelled = true; try { renderTask?.cancel(); } catch { /* no-op */ } };
+  }, [document, pageIndex, rotation, thumbnail, onTextClick]);
+  return (
+    <div className={thumbnail ? 'pdf-canvas-wrap thumbnail-wrap' : 'pdf-canvas-wrap'} style={!thumbnail && dimensions ? { width: dimensions.width, height: dimensions.height, position: 'relative' } : undefined}>
+      <canvas className={thumbnail ? 'thumbnail-canvas' : 'document-canvas'} ref={canvasRef} />
+      {!thumbnail && textItems.length > 0 && <div className="pdf-click-text-layer">
+        {textItems.map((item) => <button key={item.id} type="button" className="pdf-click-text" style={{ left: item.left, top: item.top, width: item.width, height: item.height }} title="Click to edit this line" onClick={() => onTextClick(item.line)}>{item.text}</button>)}
+      </div>}
+    </div>
+  );
 }
 
 function App() {
@@ -223,7 +250,7 @@ function App() {
   const [pageNumbers, setPageNumbers] = useState(false);
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
-  const [findResults, setFindResults] = useState(null);
+  const [findResults, setFindResults] = useState(null);\n  const [clickedPdfLine, setClickedPdfLine] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [apiReady, setApiReady] = useState(false);
   const [splitRanges, setSplitRanges] = useState('1');
@@ -492,6 +519,21 @@ function App() {
       setStatusMessage('');
     }
   };
+
+  const handlePdfTextClick = useCallback((line) => {
+    const value = String(line || '').trim();
+    if (!value) return;
+    setClickedPdfLine(value);
+    setFindText(value);
+    setReplaceText('');
+    setFindResults(null);
+    setActiveRibbonTab('Edit');
+    window.setTimeout(() => {
+      document.getElementById('ribbon-find')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      document.querySelector('#ribbon-find input')?.focus();
+    }, 80);
+    showToast('Selected PDF sentence. Enter the replacement below and apply it.');
+  }, [showToast]);
 
   const findInDocument = async () => {
     if (!pdfFile) { showToast('Upload a PDF before searching.'); return null; }
@@ -1020,7 +1062,7 @@ function App() {
                 <div className="document-stage">
                   {pdfDocument && pageCount > 0 ? (
                     <div className="paper-frame">
-                      <PdfPageCanvas document={pdfDocument} pageIndex={activePage} rotation={rotations[activePage] || 0} />
+                      <PdfPageCanvas document={pdfDocument} pageIndex={activePage} rotation={rotations[activePage] || 0} onTextClick={handlePdfTextClick} />
                       <div className="overlay-preview-layer">
                         {overlays.filter((overlay) => overlay.page === activePage).map((overlay) => (
                           <div key={overlay.id} className="overlay-preview-item" style={{
@@ -1063,6 +1105,8 @@ function App() {
 
                 <div className="tool-section" id="ribbon-find">
                   <div className="section-title"><span className="section-icon"><MousePointer2 size={15} /></span> Find & replace text</div>
+                  <p className="micro-note">Click a selectable word or line directly on the PDF page to load it here. Scanned pages require OCR first.</p>
+                  {clickedPdfLine && <div className="clicked-text-preview"><strong>Selected PDF sentence</strong><span>{clickedPdfLine}</span><button type="button" className="text-action" onClick={() => { setClickedPdfLine(''); setFindText(''); setReplaceText(''); }}>Clear selection</button></div>}
                   <label className="field-label">Find sentence or phrase</label>
                   <input ref={findInputRef} className="field-input" value={findText} onChange={(event) => { setFindText(event.target.value); setFindResults(null); }} placeholder="Enter exact text from the PDF" />
                   <button type="button" className="button button-light compact-button full-button" onClick={findInDocument} disabled={busy || !findText.trim()}><MousePointer2 size={13} /> Find in document</button>
