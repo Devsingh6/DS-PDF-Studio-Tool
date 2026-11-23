@@ -163,7 +163,7 @@ async function responseError(response) {
   }
 }
 
-function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false, onTextClick }) {
+function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false, onTextClick, selectedTextEdit, onDraftChange, onApplyEdit, onCancelEdit, inlineTextEdits = [] }) {
   const canvasRef = useRef(null);
   const [textItems, setTextItems] = useState([]);
   const [dimensions, setDimensions] = useState(null);
@@ -199,10 +199,16 @@ function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false, o
           rows.forEach((row) => {
             row.entries.sort((a, b) => a.tx[4] - b.tx[4]);
             const line = row.entries.map((entry) => entry.item.str.trim()).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-            row.entries.forEach(({ item, index, tx }) => {
-              const height = Math.max(8, Math.hypot(tx[2], tx[3]));
-              positioned.push({ id: index, text: item.str, line, left: tx[4], top: tx[5] - height, width: Math.max(5, item.width * scale), height });
-            });
+            if (!line) return;
+            const left = Math.min(...row.entries.map((entry) => entry.tx[4]));
+            const top = Math.min(...row.entries.map((entry) => entry.tx[5] - Math.max(8, Math.hypot(entry.tx[2], entry.tx[3]))));
+            const right = Math.max(...row.entries.map((entry) => entry.tx[4] + Math.max(5, entry.item.width * scale)));
+            const bottom = Math.max(...row.entries.map((entry) => entry.tx[5]));
+            const [pdfX1, pdfY1] = viewport.convertToPdfPoint(left, top);
+            const [pdfX2, pdfY2] = viewport.convertToPdfPoint(right, bottom);
+            const bbox = [Math.min(pdfX1, pdfX2), Math.min(pdfY1, pdfY2), Math.max(pdfX1, pdfX2), Math.max(pdfY1, pdfY2)];
+            const fontSize = Math.max(5, ...row.entries.map((entry) => entry.item.height || Math.hypot(entry.tx[2], entry.tx[3]) / scale));
+            positioned.push({ id: row.entries[0].index, text: line, line, left, top, width: Math.max(8, right-left), height: Math.max(10, bottom-top), bbox, fontSize });
           });
           setTextItems(positioned);
         } else setTextItems([]);
@@ -217,7 +223,12 @@ function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false, o
     <div className={thumbnail ? 'pdf-canvas-wrap thumbnail-wrap' : 'pdf-canvas-wrap'} style={!thumbnail && dimensions ? { width: dimensions.width, height: dimensions.height, position: 'relative' } : undefined}>
       <canvas className={thumbnail ? 'thumbnail-canvas' : 'document-canvas'} ref={canvasRef} />
       {!thumbnail && textItems.length > 0 && <div className="pdf-click-text-layer">
-        {textItems.map((item) => <button key={item.id} type="button" className="pdf-click-text" style={{ left: item.left, top: item.top, width: item.width, height: item.height }} title="Click to edit this line" onClick={() => onTextClick(item.line)}>{item.text}</button>)}
+        {textItems.map((item) => <button key={item.id} type="button" className="pdf-click-text" style={{ left: item.left, top: item.top, width: item.width, height: item.height }} title="Click to edit this sentence" onClick={() => onTextClick({ ...item, page: pageIndex })}>{item.text}</button>)}
+        {inlineTextEdits.filter((edit) => edit.page === pageIndex).map((edit) => <div key={edit.id} className="pdf-inline-preview" style={{ left: edit.displayRect.left, top: edit.displayRect.top, width: edit.displayRect.width, minHeight: edit.displayRect.height }}>{edit.text}</div>)}
+        {selectedTextEdit?.page === pageIndex && <div className="pdf-inline-editor" style={{ left: selectedTextEdit.displayRect.left, top: selectedTextEdit.displayRect.top, minWidth: Math.max(260, selectedTextEdit.displayRect.width), width: Math.min(520, Math.max(260, selectedTextEdit.displayRect.width)), minHeight: Math.max(46, selectedTextEdit.displayRect.height) }} onClick={(event) => event.stopPropagation()}>
+          <input autoFocus aria-label="Edit selected PDF sentence" value={selectedTextEdit.draft} onChange={(event) => onDraftChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onApplyEdit(); } if (event.key === 'Escape') onCancelEdit(); }} />
+          <div className="pdf-inline-actions"><button type="button" onClick={onApplyEdit}>Apply</button><button type="button" onClick={onCancelEdit}>Cancel</button></div>
+        </div>}
       </div>}
     </div>
   );
@@ -253,6 +264,8 @@ function App() {
   const [replaceText, setReplaceText] = useState('');
   const [findResults, setFindResults] = useState(null);
   const [clickedPdfLine, setClickedPdfLine] = useState('');
+  const [selectedTextEdit, setSelectedTextEdit] = useState(null);
+  const [inlineTextEdits, setInlineTextEdits] = useState([]);
   const [statusMessage, setStatusMessage] = useState('');
   const [apiReady, setApiReady] = useState(false);
   const [splitRanges, setSplitRanges] = useState('1');
@@ -297,6 +310,7 @@ function App() {
     selectedPages: [...selectedPages],
     rotations: { ...rotations },
     overlays: [...overlays],
+    inlineTextEdits: [...inlineTextEdits],
     activePage,
     watermarkEnabled,
     watermarkText,
@@ -314,6 +328,7 @@ function App() {
     setSelectedPages(new Set(snapshot.selectedPages));
     setRotations(snapshot.rotations);
     setOverlays(snapshot.overlays);
+    setInlineTextEdits(snapshot.inlineTextEdits || []);
     setWatermarkEnabled(snapshot.watermarkEnabled);
     setWatermarkText(snapshot.watermarkText);
     setPageNumbers(snapshot.pageNumbers);
@@ -392,6 +407,8 @@ function App() {
         setSelectedPages(new Set(initialOrder));
         setRotations({});
         setOverlays([]);
+        setInlineTextEdits([]);
+        setSelectedTextEdit(null);
         setFindResults(null);
         setTranslationConsent(false);
         setWatermarkEnabled(false);
@@ -478,6 +495,7 @@ function App() {
       rotations,
       selectedPages: selectedOnly ? Array.from(selectedPages) : [],
       overlays,
+      inlineTextEdits,
       watermark,
       pageNumbers,
       replacements: [],
@@ -522,20 +540,31 @@ function App() {
     }
   };
 
-  const handlePdfTextClick = useCallback((line) => {
-    const value = String(line || '').trim();
-    if (!value) return;
-    setClickedPdfLine(value);
-    setFindText(value);
-    setReplaceText('');
-    setFindResults(null);
+  const handlePdfTextClick = useCallback((item) => {
+    const value = String(item?.line || item?.text || '').trim();
+    if (!value || !Array.isArray(item?.bbox)) return;
+    setSelectedTextEdit({
+      id: crypto.randomUUID(),
+      page: Number(item.page),
+      originalText: value,
+      draft: value,
+      bbox: item.bbox.map(Number),
+      displayRect: { left: item.left, top: item.top, width: item.width, height: item.height },
+      fontSize: Number(item.fontSize) || 10,
+    });
     setActiveRibbonTab('Edit');
-    window.setTimeout(() => {
-      document.getElementById('ribbon-find')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      document.querySelector('#ribbon-find input')?.focus();
-    }, 80);
-    showToast('Selected PDF sentence. Enter the replacement below and apply it.');
+    showToast('Edit directly on the selected PDF sentence, then press Apply.');
   }, [showToast]);
+
+  const applyInlineTextEdit = useCallback(() => {
+    if (!selectedTextEdit) return;
+    const text = String(selectedTextEdit.draft || '');
+    if (!text.trim()) { showToast('Enter replacement text, or cancel the edit.'); return; }
+    pushHistory();
+    setInlineTextEdits((previous) => [...previous, { ...selectedTextEdit, text }]);
+    setSelectedTextEdit(null);
+    showToast('Sentence edit applied to the page preview. Export the PDF to save it.');
+  }, [selectedTextEdit, showToast]);
 
   const findInDocument = async () => {
     if (!pdfFile) { showToast('Upload a PDF before searching.'); return null; }
@@ -1064,7 +1093,7 @@ function App() {
                 <div className="document-stage">
                   {pdfDocument && pageCount > 0 ? (
                     <div className="paper-frame">
-                      <PdfPageCanvas document={pdfDocument} pageIndex={activePage} rotation={rotations[activePage] || 0} onTextClick={handlePdfTextClick} />
+                      <PdfPageCanvas document={pdfDocument} pageIndex={activePage} rotation={rotations[activePage] || 0} onTextClick={handlePdfTextClick} selectedTextEdit={selectedTextEdit} onDraftChange={(draft) => setSelectedTextEdit((current) => current ? { ...current, draft } : current)} onApplyEdit={applyInlineTextEdit} onCancelEdit={() => setSelectedTextEdit(null)} inlineTextEdits={inlineTextEdits} />
                       <div className="overlay-preview-layer">
                         {overlays.filter((overlay) => overlay.page === activePage).map((overlay) => (
                           <div key={overlay.id} className="overlay-preview-item" style={{
@@ -1107,7 +1136,7 @@ function App() {
 
                 <div className="tool-section" id="ribbon-find">
                   <div className="section-title"><span className="section-icon"><MousePointer2 size={15} /></span> Find & replace text</div>
-                  <p className="micro-note">Click a selectable word or line directly on the PDF page to load it here. Scanned pages require OCR first.</p>
+                  <p className="micro-note">For direct editing, click a sentence on the PDF page itself. The editor opens over that sentence; this separate search box is optional. Scanned pages require OCR first.</p>
                   {clickedPdfLine && <div className="clicked-text-preview"><strong>Selected PDF sentence</strong><span>{clickedPdfLine}</span><button type="button" className="text-action" onClick={() => { setClickedPdfLine(''); setFindText(''); setReplaceText(''); }}>Clear selection</button></div>}
                   <label className="field-label">Find sentence or phrase</label>
                   <input ref={findInputRef} className="field-input" value={findText} onChange={(event) => { setFindText(event.target.value); setFindResults(null); }} placeholder="Enter exact text from the PDF" />
