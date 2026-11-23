@@ -163,7 +163,6 @@ async function responseError(response) {
   }
 }
 
-let pdfJsApi;
 function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false, onTextClick }) {
   const canvasRef = useRef(null);
   const [textItems, setTextItems] = useState([]);
