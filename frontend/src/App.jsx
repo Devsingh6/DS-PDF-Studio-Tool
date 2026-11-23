@@ -8,7 +8,8 @@ import {
 
 // PDF.js is large. Load it only after a PDF is selected so the initial
 // corporate workspace stays fast and the PDF renderer is cached separately.
-let pdfJsModulePromise;\nlet pdfJsApi;
+let pdfJsModulePromise;
+let pdfJsApi;
 async function loadPdfJs() {
   if (!pdfJsModulePromise) {
     pdfJsModulePromise = Promise.all([
@@ -16,7 +17,8 @@ async function loadPdfJs() {
       import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
     ]).then(([pdfjsLib, pdfWorker]) => {
       pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker.default;
-      pdfJsApi = pdfjsLib;\n      return pdfjsLib;
+      pdfJsApi = pdfjsLib;
+      return pdfjsLib;
     }).catch((error) => {
       // Permit retry after a transient chunk/network failure.
       pdfJsModulePromise = undefined;
