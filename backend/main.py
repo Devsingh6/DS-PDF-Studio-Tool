@@ -439,6 +439,18 @@ def _build_output(source: fitz.Document, config: dict[str, Any], selected_only: 
             extra_rotation = 0
             if isinstance(rotations, dict):
                 extra_rotation = int(_as_float(rotations.get(str(original_index), 0), 0, -360, 360))
+            crop_by_page = config.get("cropByPage", {})
+            crop = crop_by_page.get(str(original_index)) if isinstance(crop_by_page, dict) else None
+            if isinstance(crop, dict):
+                box = page.cropbox
+                width, height = box.width, box.height
+                left = _as_float(crop.get("left", 0), 0, 0, 45) / 100 * width
+                right = _as_float(crop.get("right", 0), 0, 0, 45) / 100 * width
+                top = _as_float(crop.get("top", 0), 0, 0, 45) / 100 * height
+                bottom = _as_float(crop.get("bottom", 0), 0, 0, 45) / 100 * height
+                if left + right >= width * 0.9 or top + bottom >= height * 0.9:
+                    raise HTTPException(status_code=400, detail="Crop margins are too large. Keep combined margins below 90% of the page.")
+                page.set_cropbox(fitz.Rect(box.x0 + left, box.y0 + top, box.x1 - right, box.y1 - bottom))
             page.set_rotation((page.rotation + extra_rotation) % 360)
             _apply_page_content(page, original_index, output_index, config)
 
