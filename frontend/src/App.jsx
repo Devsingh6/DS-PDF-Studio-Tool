@@ -165,8 +165,26 @@ async function responseError(response) {
 
 function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false, onTextClick, selectedTextEdit, onDraftChange, onApplyEdit, onCancelEdit, inlineTextEdits = [] }) {
   const canvasRef = useRef(null);
+  const wrapperRef = useRef(null);
   const [textItems, setTextItems] = useState([]);
   const [dimensions, setDimensions] = useState(null);
+  const [displayScale, setDisplayScale] = useState(1);
+
+  // PDF.js positions are measured in the canvas's intrinsic pixels. On narrow
+  // screens CSS shrinks the canvas, so keep every click target/editor in the
+  // same displayed coordinate space as the visible page.
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper || !dimensions?.width) return undefined;
+    const updateScale = () => {
+      const rect = wrapper.getBoundingClientRect();
+      if (rect.width > 0) setDisplayScale(rect.width / dimensions.width);
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(wrapper);
+    return () => observer.disconnect();
+  }, [dimensions]);
   useEffect(() => {
     let cancelled = false;
     let renderTask;
@@ -220,12 +238,12 @@ function PdfPageCanvas({ document, pageIndex, rotation = 0, thumbnail = false, o
     return () => { cancelled = true; try { renderTask?.cancel(); } catch { /* no-op */ } };
   }, [document, pageIndex, rotation, thumbnail, onTextClick]);
   return (
-    <div className={thumbnail ? 'pdf-canvas-wrap thumbnail-wrap' : 'pdf-canvas-wrap'} style={!thumbnail && dimensions ? { width: dimensions.width, height: dimensions.height, position: 'relative' } : undefined}>
+    <div ref={wrapperRef} className={thumbnail ? 'pdf-canvas-wrap thumbnail-wrap' : 'pdf-canvas-wrap'} style={!thumbnail && dimensions ? { width: dimensions.width, height: dimensions.height, position: 'relative' } : undefined}>
       <canvas className={thumbnail ? 'thumbnail-canvas' : 'document-canvas'} ref={canvasRef} />
       {!thumbnail && textItems.length > 0 && <div className="pdf-click-text-layer">
-        {textItems.map((item) => <button key={item.id} type="button" className="pdf-click-text" style={{ left: item.left, top: item.top, width: item.width, height: item.height }} title="Click to edit this sentence" onClick={() => onTextClick({ ...item, page: pageIndex })}>{item.text}</button>)}
-        {inlineTextEdits.filter((edit) => edit.page === pageIndex).map((edit) => <div key={edit.id} className="pdf-inline-preview" style={{ left: edit.displayRect.left, top: edit.displayRect.top, width: edit.displayRect.width, minHeight: edit.displayRect.height }}>{edit.text}</div>)}
-        {selectedTextEdit?.page === pageIndex && <div className="pdf-inline-editor" style={{ left: selectedTextEdit.displayRect.left, top: selectedTextEdit.displayRect.top, minWidth: Math.max(260, selectedTextEdit.displayRect.width), width: Math.min(520, Math.max(260, selectedTextEdit.displayRect.width)), minHeight: Math.max(46, selectedTextEdit.displayRect.height) }} onClick={(event) => event.stopPropagation()}>
+        {textItems.map((item) => <button key={item.id} type="button" className="pdf-click-text" style={{ left: item.left * displayScale, top: item.top * displayScale, width: item.width * displayScale, height: item.height * displayScale }} title="Click to edit this sentence" onClick={() => onTextClick({ ...item, page: pageIndex })}>{item.text}</button>)}
+        {inlineTextEdits.filter((edit) => edit.page === pageIndex).map((edit) => <div key={edit.id} className="pdf-inline-preview" style={{ left: edit.displayRect.left * displayScale, top: edit.displayRect.top * displayScale, width: edit.displayRect.width * displayScale, minHeight: edit.displayRect.height * displayScale }}>{edit.text}</div>)}
+        {selectedTextEdit?.page === pageIndex && <div className="pdf-inline-editor" style={{ left: selectedTextEdit.displayRect.left * displayScale, top: selectedTextEdit.displayRect.top * displayScale, minWidth: Math.max(220, selectedTextEdit.displayRect.width * displayScale), width: Math.min(520, Math.max(220, selectedTextEdit.displayRect.width * displayScale)), minHeight: Math.max(46, selectedTextEdit.displayRect.height * displayScale) }} onClick={(event) => event.stopPropagation()}>
           <input autoFocus aria-label="Edit selected PDF sentence" value={selectedTextEdit.draft} onChange={(event) => onDraftChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onApplyEdit(); } if (event.key === 'Escape') onCancelEdit(); }} />
           <div className="pdf-inline-actions"><button type="button" onClick={onApplyEdit}>Apply</button><button type="button" onClick={onCancelEdit}>Cancel</button></div>
         </div>}
