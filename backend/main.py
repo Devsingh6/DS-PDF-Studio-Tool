@@ -590,6 +590,31 @@ async def split_pdf(
         source.close()
 
 
+@app.post("/api/pdf/to-images")
+async def pdf_to_images(file: UploadFile = File(...), image_format: str = Form("png"), dpi: int = Form(144)) -> Response:
+    """Render PDF pages to PNG/JPEG files and return them in a ZIP archive."""
+    fmt = image_format.lower().strip()
+    if fmt not in {"png", "jpg", "jpeg"}:
+        raise HTTPException(status_code=400, detail="Choose PNG or JPG image format.")
+    dpi = max(72, min(int(dpi), 300))
+    data = await file.read(MAX_FILE_BYTES + 1)
+    source = _read_pdf_bytes(data, file.filename or "document.pdf")
+    archive = BytesIO()
+    try:
+        if source.page_count > 100:
+            raise HTTPException(status_code=413, detail="PDF to images is limited to 100 pages per request.")
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            for index, page in enumerate(source, start=1):
+                pix = page.get_pixmap(matrix=fitz.Matrix(dpi / 72, dpi / 72), alpha=False)
+                extension = "jpg" if fmt in {"jpg", "jpeg"} else "png"
+                bundle.writestr(f"page-{index:04d}.{extension}", pix.tobytes(extension))
+        base = _safe_filename(file.filename or "document.pdf")[:-4]
+        return Response(content=archive.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{base}-images.zip"'})
+    finally:
+        source.close()
+        archive.close()
+
+
 @app.post("/api/pdf/from-images")
 async def images_to_pdf(files: list[UploadFile] = File(...)) -> Response:
     """Combine uploaded image files into a multi-page PDF in upload order."""
