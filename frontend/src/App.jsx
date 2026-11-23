@@ -1110,7 +1110,7 @@ function App() {
                 </div>
 
                 <div className="tool-section" id="ribbon-crop">
-                  <div className="section-title"><span className="section-icon"><Crop size={15} /></span> Crop active page</div>
+                  <div className="section-title"><span className="section-icon"><Scissors size={15} /></span> Crop active page</div>
                   <p className="micro-note">Set crop margins as percentages of the current page. The crop is applied to the exported PDF, not the original upload.</p>
                   <div className="field-grid">
                     {['top', 'right', 'bottom', 'left'].map((side) => <div key={side}><label className="field-label">{side[0].toUpperCase() + side.slice(1)} (%)</label><input className="field-input" type="number" min="0" max="45" step="1" value={cropMargins[side]} onChange={(event) => setCropMargins((previous) => ({ ...previous, [side]: Math.max(0, Math.min(45, Number(event.target.value) || 0)) }))} /></div>)}
