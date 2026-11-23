@@ -105,8 +105,8 @@ const RIBBON_GROUPS = {
     ['Searchable OCR', 'Recognise scanned pages and create searchable PDFs', 'available', 'ocr'],
     ['Layout OCR', 'Export recognised text with page coordinates', 'available', 'layout-ocr'],
     ['AI translation', 'Translate document text with layout-aware placement', 'available', 'translate'],
-    ['AI PDF chat', 'Ask questions about a document', 'planned', 'roadmap'],
-    ['AI summary', 'Create concise summaries of long reports', 'planned', 'roadmap'],
+    ['AI PDF chat', 'Ask questions about an uploaded document', 'available', 'ai-chat'],
+    ['AI summary', 'Summarize uploaded PDFs and extract key details', 'available', 'ai-summary'],
     ['Deskew scans', 'Straighten crooked scanned pages', 'planned', 'roadmap'],
   ],
   Batch: [
@@ -298,6 +298,11 @@ function App() {
   const [unicodeFontConfigured, setUnicodeFontConfigured] = useState(false);
   const [unicodeFontSource, setUnicodeFontSource] = useState('not checked');
   const [translationMessage, setTranslationMessage] = useState('');
+  const [aiConsent, setAiConsent] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState('');
+  const [aiAnswer, setAiAnswer] = useState('');
+  const [aiSummary, setAiSummary] = useState('');
+  const [aiHistory, setAiHistory] = useState([]);
   const [protectPassword, setProtectPassword] = useState('');
   const [stampText, setStampText] = useState('REVIEWED');
   const [stampTemplates, setStampTemplates] = useState(() => {
@@ -710,6 +715,45 @@ function App() {
     }
   };
 
+
+  const runAiSummary = async () => {
+    if (!pdfFile) { showToast('Upload a PDF first.'); return; }
+    if (!aiConsent) { showToast('Please allow document text to be sent to your AI provider.'); return; }
+    setBusy(true); setStatusMessage('Reading PDF and preparing AI summary…'); setAiSummary('');
+    try {
+      const currentPdf = await requestPdf('export', buildConfig(false));
+      const form = new FormData();
+      form.append('file', new File([currentPdf], pdfFile.name, { type: 'application/pdf' }));
+      const response = await fetch(`${API_BASE}/api/pdf/ai-summary`, { method: 'POST', body: form });
+      if (!response.ok) throw new Error(await responseError(response));
+      const data = await response.json(); setAiSummary(data.summary || 'No summary returned.');
+      showToast('AI summary is ready.');
+    } catch (error) { showToast(error.message || 'AI summary failed.'); }
+    finally { setBusy(false); setStatusMessage(''); }
+  };
+
+  const askAiPdf = async () => {
+    if (!pdfFile) { showToast('Upload a PDF first.'); return; }
+    if (!aiConsent) { showToast('Please allow document text to be sent to your AI provider.'); return; }
+    if (!aiQuestion.trim()) return;
+    const question = aiQuestion.trim(); setAiQuestion('');
+    const nextHistory = [...aiHistory, { role: 'user', content: question }];
+    setAiHistory(nextHistory); setBusy(true); setStatusMessage('Searching the PDF context and preparing an answer…');
+    try {
+      const currentPdf = await requestPdf('export', buildConfig(false));
+      const form = new FormData();
+      form.append('file', new File([currentPdf], pdfFile.name, { type: 'application/pdf' }));
+      form.append('question', question);
+      form.append('history', JSON.stringify(aiHistory.slice(-8)));
+      const response = await fetch(`${API_BASE}/api/pdf/ai-chat`, { method: 'POST', body: form });
+      if (!response.ok) throw new Error(await responseError(response));
+      const data = await response.json();
+      setAiHistory([...nextHistory, { role: 'assistant', content: data.answer || 'No answer returned.' }]);
+    } catch (error) {
+      setAiHistory([...nextHistory, { role: 'assistant', content: error.message || 'AI chat failed.' }]);
+    } finally { setBusy(false); setStatusMessage(''); }
+  };
+
   const protectPdf = async () => {
     if (protectPassword.length < 8) { showToast('Use a password with at least 8 characters.'); return; }
     await downloadPdfEndpoint('protect', { user_password: protectPassword }, `${pdfFile?.name.replace(/\.pdf$/i, '') || 'document'}-protected`);
@@ -1008,7 +1052,7 @@ function App() {
     }
     if (feature.action === 'ocr') { if (!pdfFile) openPdfPicker(); else runOcr(); return; }
     if (feature.action === 'layout-ocr') { if (!pdfFile) openPdfPicker(); else runLayoutOcr(); return; }
-    if (feature.action === 'translate') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-ai'); return; }
+    if (feature.action === 'translate' || feature.action === 'ai-chat' || feature.action === 'ai-summary') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-ai'); return; }
     if (feature.action === 'protect') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-protect'); return; }
     if (feature.action === 'signature' || feature.action === 'stamps') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-stamps'); return; }
     if (feature.action === 'undo') { undoEdits(); return; }
@@ -1235,6 +1279,17 @@ function App() {
                   <p className="micro-note">AI translation requires your own OpenAI-compatible provider API key and may incur provider charges. A ChatGPT subscription does not automatically provide API access.</p>
                   <button className="button button-light compact-button full-button" onClick={runLayoutOcr} disabled={busy}><ScanText size={13} /> Export layout OCR (JSON)</button>
                   <p className="micro-note">Supports translation targets for the 22 Indian scheduled languages. OCR for scanned pages needs the matching installed Tesseract language model. Translated text is fitted into the source text boxes; long translations may need review.</p>
+                  <div className="ai-feature-card">
+                    <div className="section-title"><span className="section-icon"><Sparkles size={15} /></span> AI PDF assistant</div>
+                    <label className="toggle-row translation-consent"><span>Allow PDF text to be sent securely to the configured AI provider</span><input type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} /></label>
+                    <button type="button" className="button button-primary compact-button full-button" onClick={runAiSummary} disabled={busy || !aiConsent}><Sparkles size={13} /> Generate AI summary</button>
+                    {aiSummary && <div className="ai-result" aria-live="polite">{aiSummary}</div>}
+                    <label className="field-label field-label-spaced">Ask a question about this PDF</label>
+                    <textarea className="text-area" rows={3} value={aiQuestion} onChange={(event) => setAiQuestion(event.target.value)} placeholder="Example: What are the key dates and payment amounts?" />
+                    <button type="button" className="button button-light compact-button full-button" onClick={askAiPdf} disabled={busy || !aiConsent || !aiQuestion.trim()}><Sparkles size={13} /> Ask AI about this PDF</button>
+                    {aiHistory.length > 0 && <div className="ai-chat-history" aria-live="polite">{aiHistory.slice(-8).map((item, index) => <div className={item.role === 'user' ? 'ai-chat-user' : 'ai-chat-assistant'} key={index}><strong>{item.role === 'user' ? 'You' : 'PDF Assistant'}</strong><p>{item.content}</p></div>)}</div>}
+                    <p className="micro-note">AI answers are based on selectable PDF text and include page references where possible. For scanned documents, run Searchable OCR first. Always verify important legal or financial details.</p>
+                  </div>
                 </div>
 
                 <div className="tool-section" id="ribbon-stamps">
