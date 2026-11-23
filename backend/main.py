@@ -405,7 +405,8 @@ def _build_output(source: fitz.Document, config: dict[str, Any], selected_only: 
             idx = int(index)
         except (TypeError, ValueError):
             continue
-        if 0 <= idx < page_count and idx not in normalized_order:
+        if 0 <= idx < page_count and len(normalized_order) < MAX_PAGES:
+            # Preserve repeated indexes: they represent intentionally duplicated pages.
             normalized_order.append(idx)
 
     if selected_only:
