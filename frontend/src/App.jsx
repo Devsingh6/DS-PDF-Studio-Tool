@@ -69,7 +69,7 @@ const RIBBON_GROUPS = {
     ['PDF to RTF', 'Export rich text format', 'available', 'rtf'],
     ['Office to PDF', 'Convert Word, Excel and PowerPoint files', 'planned', 'roadmap'],
     ['PDF to images', 'Render pages as JPG or PNG', 'planned', 'roadmap'],
-    ['Images to PDF', 'Combine photos and scans into one PDF', 'planned', 'roadmap'],
+    ['Images to PDF', 'Combine JPG, PNG, TIFF and BMP images into one PDF', 'available', 'images-pdf'],
     ['Office to PDF', 'Convert Word, Excel and PowerPoint files', 'planned', 'roadmap'],
     ['Webpage to PDF', 'Capture a formatted webpage as a PDF', 'planned', 'roadmap'],
     ['CAD / Visio to PDF', 'Convert technical drawings and diagrams', 'planned', 'roadmap'],
@@ -242,6 +242,7 @@ function App() {
   const inputRef = useRef(null);
   const mergeInputRef = useRef(null);
   const zipInputRef = useRef(null);
+  const imagesToPdfInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const findInputRef = useRef(null);
   const [pdfFile, setPdfFile] = useState(null);
@@ -738,6 +739,29 @@ function App() {
     }
   };
 
+  const convertImagesToPdf = async (files) => {
+    const images = Array.from(files || []).filter((file) => ['image/jpeg', 'image/png', 'image/tiff', 'image/bmp'].includes(file.type) || /\.(jpe?g|png|tiff?|bmp)$/i.test(file.name));
+    if (!images.length) { showToast('Choose JPG, PNG, TIFF or BMP images.'); return; }
+    if (images.length > 100) { showToast('Choose up to 100 images per PDF.'); return; }
+    const form = new FormData();
+    images.forEach((file) => form.append('files', file, file.name));
+    setBusy(true);
+    setStatusMessage('Converting images into PDF pages…');
+    try {
+      const response = await fetch(`${API_BASE}/api/pdf/from-images`, { method: 'POST', body: form });
+      if (!response.ok) throw new Error(await responseError(response));
+      const blob = await response.blob();
+      downloadBlob(blob, 'images-to-pdf.pdf');
+      showToast(`Created a PDF with ${images.length} image page(s).`);
+    } catch (error) {
+      showToast(error.message || 'Images to PDF conversion failed.');
+    } finally {
+      setBusy(false);
+      setStatusMessage('');
+      if (imagesToPdfInputRef.current) imagesToPdfInputRef.current.value = '';
+    }
+  };
+
   const toggleSelected = (index) => {
     setSelectedPages((previous) => {
       const next = new Set(previous);
@@ -920,6 +944,7 @@ function App() {
     if (feature.action === 'export') { if (pdfFile) exportPdf(false); else showToast('Upload a PDF before exporting.'); return; }
     if (feature.action === 'merge') { if (pdfFile) mergeInputRef.current?.click(); else openPdfPicker(); return; }
     if (feature.action === 'zip') { if (pdfFile) zipInputRef.current?.click(); else showToast('Upload a PDF before creating a ZIP.'); return; }
+    if (feature.action === 'images-pdf') { imagesToPdfInputRef.current?.click(); return; }
     if (feature.action === 'split') { openToolSection('ribbon-split'); return; }
     if (feature.action === 'duplicate') {
       if (!pdfFile) { openPdfPicker(); return; }
@@ -1022,6 +1047,7 @@ function App() {
               <div className="document-actions"><button type="button" className="button button-light" onClick={openPdfPicker}><FilePlus2 size={15} /> Open another</button><button className="button button-light" onClick={() => mergeInputRef.current?.click()}><Files size={15} /> Merge PDFs</button><button className="button button-light" onClick={() => zipInputRef.current?.click()}><FileArchive size={15} /> ZIP PDFs</button><button className="button button-primary" onClick={() => exportPdf(false)} disabled={busy}><Download size={15} /> Export</button></div>
               <input ref={mergeInputRef} type="file" accept="application/pdf,.pdf" multiple className="hidden-input" onChange={(event) => mergePdfs(event.target.files)} />
               <input ref={zipInputRef} type="file" accept="application/pdf,.pdf" multiple className="hidden-input" onChange={(event) => zipPdfs(event.target.files)} />
+              <input ref={imagesToPdfInputRef} type="file" accept="image/jpeg,image/png,image/tiff,image/bmp,.jpg,.jpeg,.png,.tif,.tiff,.bmp" multiple className="hidden-input" onChange={(event) => convertImagesToPdf(event.target.files)} />
             </div>
 
             <section className="workspace-grid">
