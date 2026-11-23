@@ -670,7 +670,7 @@ function App() {
     if (!pdfFile) { showToast('Upload a PDF first.'); return; }
     if (!apiReady) { showToast('Python API is not connected. Start the backend and refresh AI status.'); return; }
     if (!translationConfigured) {
-      const message = 'AI translation is not configured. Add your provider API key to backend/.env, save the file and restart the Python server.';
+      const message = 'AI translation is not enabled on the live website yet. Add AI_TRANSLATION_API_KEY in Render Dashboard → ds-pdf-studio-tool → Environment, then save and redeploy. The API key must come from your AI provider; a ChatGPT subscription does not include API credits.';
       setTranslationMessage(message);
       showToast(message);
       return;
@@ -1216,8 +1216,8 @@ function App() {
                       <button type="button" className="text-action" onClick={refreshApiStatus}>Refresh status</button>
                     </div>
                     <div className="ai-setup-checks"><span>{apiReady ? 'Python API connected' : 'Python API disconnected'}</span><span>{unicodeFontConfigured ? `Unicode font ${unicodeFontSource}` : 'Tamil/Indic font not detected'}</span></div>
-                    {!translationConfigured && <p>Set <code>AI_TRANSLATION_API_KEY</code> in <code>backend/.env</code>, then restart the Python server. The key stays on your computer; never paste it into the React code.</p>}
-                    {translationConfigured && !unicodeFontConfigured && <p>Install Nirmala UI or Noto Sans Tamil, or configure <code>PDF_UNICODE_FONT_PATH</code> in <code>backend/.env</code>.</p>}
+                    {!translationConfigured && <p><strong>Live website setup required:</strong> Add <code>AI_TRANSLATION_API_KEY</code> in Render Dashboard → <strong>ds-pdf-studio-tool → Environment</strong>, then save and redeploy. Use an API key from your AI provider. Keep the key in Render environment variables; never put it in frontend code or a public repository. A ChatGPT subscription does not automatically include API access.</p>}
+                    {translationConfigured && !unicodeFontConfigured && <p>The server cannot find a Tamil/Indic Unicode font. The live server needs a Noto Sans Tamil font file and a valid <code>PDF_UNICODE_FONT_PATH</code> setting.</p>}
                     {translationMessage && <p className="ai-error-message" role="alert">{translationMessage}</p>}
                   </div>
                   <label className="field-label">Source language</label>
