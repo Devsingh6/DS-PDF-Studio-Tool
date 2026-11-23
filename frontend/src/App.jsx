@@ -50,7 +50,7 @@ const RIBBON_GROUPS = {
   ],
   Organize: [
     ['Organize pages', 'Reorder, rotate and delete pages', 'available', 'pages'],
-    ['Duplicate pages', 'Create copies of selected pages', 'planned', 'roadmap'],
+    ['Duplicate pages', 'Create a copy of the active page in the page list', 'available', 'duplicate'],
     ['Crop pages', 'Trim margins and set page dimensions', 'planned', 'roadmap'],
     ['PDF overlay / letterhead', 'Place one PDF over another document', 'planned', 'roadmap'],
     ['Page numbers', 'Add sequential page labels', 'available', 'watermark'],
@@ -921,6 +921,17 @@ function App() {
     if (feature.action === 'merge') { if (pdfFile) mergeInputRef.current?.click(); else openPdfPicker(); return; }
     if (feature.action === 'zip') { if (pdfFile) zipInputRef.current?.click(); else showToast('Upload a PDF before creating a ZIP.'); return; }
     if (feature.action === 'split') { openToolSection('ribbon-split'); return; }
+    if (feature.action === 'duplicate') {
+      if (!pdfFile) { openPdfPicker(); return; }
+      const current = pageOrder.indexOf(activePage);
+      if (current < 0) { showToast('Select a page to duplicate.'); return; }
+      if (pageOrder.length >= 500) { showToast('The 500-page workspace limit has been reached.'); return; }
+      pushHistory();
+      setPageOrder((previous) => [...previous.slice(0, current + 1), activePage, ...previous.slice(current + 1)]);
+      setSelectedPages((previous) => new Set([...previous, activePage]));
+      showToast('Page ' + (current + 1) + ' duplicated. Export PDF to save the copy.');
+      return;
+    }
     if (feature.action === 'pages') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-pages'); return; }
     if (feature.action === 'find') { if (!pdfFile) openPdfPicker(); else { openToolSection('ribbon-find'); window.setTimeout(() => findInputRef.current?.focus(), 250); } return; }
     if (feature.action === 'text') { if (!pdfFile) openPdfPicker(); else openToolSection('ribbon-text'); return; }
@@ -1018,7 +1029,7 @@ function App() {
                 <div className="panel-heading"><div><h2>Pages <span className="count-bubble">{pageCount}</span></h2><p>Choose and arrange pages</p></div><button className="text-action" onClick={selectAll}>{selectedCount === pageCount ? 'Clear' : 'Select all'}</button></div>
                 <div className="page-list">
                   {pageOrder.map((pageIndex, displayIndex) => (
-                    <div key={pageIndex} className={`page-tile ${activePage === pageIndex ? 'active' : ''}`} onClick={() => setActivePage(pageIndex)}>
+                    <div key={`${pageIndex}-${displayIndex}`} className={`page-tile ${activePage === pageIndex ? 'active' : ''}`} onClick={() => setActivePage(pageIndex)}>
                       <input type="checkbox" checked={selectedPages.has(pageIndex)} onClick={(event) => event.stopPropagation()} onChange={() => toggleSelected(pageIndex)} aria-label={`Select page ${displayIndex + 1}`} />
                       <div className="thumb-container"><PdfPageCanvas document={pdfDocument} pageIndex={pageIndex} rotation={rotations[pageIndex] || 0} thumbnail /><div className="tile-meta"><span>Page {displayIndex + 1}</span>{rotations[pageIndex] ? <span>{rotations[pageIndex]}°</span> : null}</div></div>
                     </div>
